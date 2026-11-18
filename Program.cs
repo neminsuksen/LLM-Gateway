@@ -23,7 +23,13 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
     string body = await reader.ReadToEndAsync();
     JsonNode requestJson = JsonNode.Parse(body)!;
 
-    string model = requestJson["model"]!.GetValue<string>();
+    string model = requestJson["model"]!.GetValue<string>() switch
+    {
+        "auto-cheap" => models.MinBy(m => m.Value.InputPrice).Key,
+        "auto-smart" => models.MaxBy(m => m.Value.InputPrice).Key,
+        _ => requestJson["model"]!.GetValue<string>()
+    };
+    requestJson["model"] = model;
     if (!models.TryGetValue(model, out ModelInfo? info))
     {
         return Results.Content(new JsonObject
@@ -39,7 +45,7 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
     }
     bool isAnthropic = info.Provider == "Anthropic";
     string url = isAnthropic ? "https://api.anthropic.com/v1/messages" : "https://api.openai.com/v1/chat/completions";
-    string upstreamBody = isAnthropic ? Anthropic.ConvertRequestMessage(requestJson).ToJsonString() : body;
+    string upstreamBody = isAnthropic ? Anthropic.ConvertRequestMessage(requestJson).ToJsonString() : requestJson.ToJsonString();
     string keyName = isAnthropic ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
 
     HttpRequestMessage upstreamRequest = new HttpRequestMessage(HttpMethod.Post, url);

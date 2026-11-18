@@ -1,5 +1,5 @@
 {
-    "model": "Nemin-Super-Smart",
+    "model": "gpt-5-nano",
     "messages": [
         {
             "role": "system",
