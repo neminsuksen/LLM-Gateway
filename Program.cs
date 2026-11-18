@@ -17,8 +17,15 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
 
     if (model.StartsWith("claude"))
     {
-        JsonNode anthropicRequest = Anthropic.ConvertMessage(requestJson);
-        return Results.Content(anthropicRequest.ToJsonString(), "application/json");
+        JsonNode anthropicRequest = Anthropic.ConvertRequestMessage(requestJson);
+        HttpRequestMessage anthropicUpstreamRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+        anthropicUpstreamRequest.Content = new StringContent(anthropicRequest.ToJsonString(), Encoding.UTF8, "application/json");
+        anthropicUpstreamRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"));
+        anthropicUpstreamRequest.Headers.Add("anthropic-version", "2026-10-21");
+        HttpResponseMessage anthropicUpstreamResponse = await httpClient.SendAsync(anthropicUpstreamRequest);
+        string anthropicLlmResponse = await anthropicUpstreamResponse.Content.ReadAsStringAsync();
+        string openAiLlmResponse = anthropicUpstreamResponse.IsSuccessStatusCode ? Anthropic.ConvertResponseMessage(anthropicLlmResponse) : anthropicLlmResponse;
+        return Results.Content(openAiLlmResponse, "application/json", statusCode: (int)anthropicUpstreamResponse.StatusCode);
     }
 
     HttpRequestMessage upstreamRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
