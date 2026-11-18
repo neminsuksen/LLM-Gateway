@@ -13,11 +13,12 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
     StreamReader reader = new StreamReader(request.Body);
     string body = await reader.ReadToEndAsync();
     JsonNode requestJson = JsonNode.Parse(body)!;
-    string model = requestJson["model"].GetValue<string>();
+    string model = requestJson["model"]!.GetValue<string>();
 
     if (model.StartsWith("claude"))
     {
-        return Results.Content("antropic route");
+        JsonNode anthropicRequest = Anthropic.ConvertMessage(requestJson);
+        return Results.Content(anthropicRequest.ToJsonString(), "application/json");
     }
 
     HttpRequestMessage upstreamRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
