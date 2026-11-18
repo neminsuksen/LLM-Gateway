@@ -1,5 +1,6 @@
 using System.Text;
 using System.Net.Http.Headers;
+using System.Text.Json.Nodes;
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
@@ -11,6 +12,14 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
 {
     StreamReader reader = new StreamReader(request.Body);
     string body = await reader.ReadToEndAsync();
+    JsonNode requestJson = JsonNode.Parse(body)!;
+    string model = requestJson["model"].GetValue<string>();
+
+    if (model.StartsWith("claude"))
+    {
+        return Results.Content("antropic route");
+    }
+
     HttpRequestMessage upstreamRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
     upstreamRequest.Content = new StringContent(body, Encoding.UTF8, "application/json");
     upstreamRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
