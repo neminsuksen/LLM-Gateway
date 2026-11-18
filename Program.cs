@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 var app = builder.Build();
 
 app.MapGet("/", () => "Hello World!");
@@ -27,7 +28,7 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
     {
         "auto-cheap" => models.MinBy(m => m.Value.InputPrice).Key,
         "auto-smart" => models.MaxBy(m => m.Value.InputPrice).Key,
-        _ => requestJson["model"]!.GetValue<string>()
+        var name => name
     };
     requestJson["model"] = model;
     if (!models.TryGetValue(model, out ModelInfo? info))
@@ -58,6 +59,16 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
     HttpResponseMessage upstreamResponse = await httpClient.SendAsync(upstreamRequest);
     string llmResponseRaw = await upstreamResponse.Content.ReadAsStringAsync();
     string llmResponseOpenAiFormat = upstreamResponse.IsSuccessStatusCode && isAnthropic ? Anthropic.ConvertResponseMessage(llmResponseRaw) : llmResponseRaw;
+    if (upstreamResponse.IsSuccessStatusCode)
+    {
+        JsonNode responseJson = JsonNode.Parse(llmResponseOpenAiFormat)!;
+        JsonNode usage = responseJson["usage"]!;
+        int promptTokens = usage["prompt_tokens"]!.GetValue<int>();
+        int completionTokens = usage["completion_tokens"]!.GetValue<int>();
+        decimal promptTokenCost = promptTokens * info.InputPrice / 1_000_000m;
+        decimal completionTokenCost = completionTokens * info.OutputPrice / 1_000_000m;
+        Console.WriteLine($"Model:{model} prompt: {promptTokens} completion: {completionTokens} cost: {promptTokenCost + completionTokenCost}");
+    }
     return Results.Content(llmResponseOpenAiFormat, "application/json", statusCode: (int)upstreamResponse.StatusCode);
 });
 

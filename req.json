@@ -1,5 +1,5 @@
 {
-    "model": "gpt-5-nano",
+    "model": "claude-sonnet-5-5",
     "messages": [
         {
             "role": "system",
