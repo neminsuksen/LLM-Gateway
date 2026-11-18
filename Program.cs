@@ -6,8 +6,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 var app = builder.Build();
 
-app.MapGet("/", () => "Hello World!");
-
 HttpClient httpClient = new HttpClient();
 Dictionary<string, ModelInfo> models = new()
 {
@@ -17,6 +15,8 @@ Dictionary<string, ModelInfo> models = new()
     ["claude-haiku-5-5"] = new("Anthropic", 0.10m, 0.50m),
     ["claude-sonnet-5-5"] = new("Anthropic", 2.00m, 10.00m)
 };
+
+app.MapGet("/", () => "LLM Gateway!");
 
 app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
 {
@@ -70,6 +70,42 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
         Console.WriteLine($"Model:{model} prompt: {promptTokens} completion: {completionTokens} cost: {promptTokenCost + completionTokenCost}");
     }
     return Results.Content(llmResponseOpenAiFormat, "application/json", statusCode: (int)upstreamResponse.StatusCode);
+});
+
+app.MapGet("/v1/models", () =>
+{
+    JsonArray modelsArray = new JsonArray();
+    foreach (KeyValuePair<string, ModelInfo> m in models)
+    {
+        modelsArray.Add(new JsonObject
+        {
+            ["id"] = m.Key,
+            ["object"] = "model",
+            ["created"] = 0,
+            ["owned_by"] = m.Value.Provider
+        });
+    }
+    modelsArray.Add(new JsonObject
+    {
+        ["id"] = "auto-cheap",
+        ["object"] = "model",
+        ["created"] = 0,
+        ["owned_by"] = "LLM-Gateway"
+    });
+    modelsArray.Add(new JsonObject
+    {
+        ["id"] = "auto-smart",
+        ["object"] = "model",
+        ["created"] = 0,
+        ["owned_by"] = "LLM-Gateway"
+    });
+    JsonObject result = new JsonObject
+    {
+        ["object"] = "list",
+        ["data"] = modelsArray
+    };
+
+    return Results.Content(result.ToJsonString(), "application/json");
 });
 
 app.Run();
