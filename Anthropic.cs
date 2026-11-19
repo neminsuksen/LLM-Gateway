@@ -9,6 +9,7 @@ public static class Anthropic
 
         /* Messages Convert */
         JsonArray messages = new JsonArray();
+        string rolePrevious = string.Empty;
         foreach (JsonNode? message in jsonNode["messages"]!.AsArray())
         {
             string role = message!["role"]!.GetValue<string>();
@@ -16,10 +17,61 @@ public static class Anthropic
             {
                 result["system"] = message!["content"]!.GetValue<string>();
             }
+            else if (role == "assistant" && message["tool_calls"] != null)
+            {
+                JsonObject messageToolCall = new JsonObject { ["role"] = "assistant" };
+                JsonArray contents = new JsonArray();
+                if (message["content"] != null)
+                {
+                    contents.Add(new JsonObject
+                    {
+                        ["type"] = "text",
+                        ["text"] = message["content"]!.GetValue<string>()
+                    });
+                }
+                foreach (JsonNode? toolCall in message["tool_calls"]!.AsArray())
+                {
+                    JsonNode function = toolCall!["function"]!;
+                    contents.Add(new JsonObject
+                    {
+                        ["type"] = "tool_use",
+                        ["id"] = toolCall["id"]!.GetValue<string>(),
+                        ["name"] = function["name"]!.GetValue<string>(),
+                        ["input"] = JsonNode.Parse(function["arguments"]!.GetValue<string>())
+                    });
+                }
+                messageToolCall["content"] = contents;
+                messages.Add(messageToolCall);
+            }
+            else if (role == "tool")
+            {
+                JsonObject toolResult = new JsonObject
+                {
+                    ["type"] = "tool_result",
+                    ["tool_use_id"] = message["tool_call_id"]!.GetValue<string>(),
+                    ["content"] = message["content"]!.GetValue<string>()
+                };
+
+                if (rolePrevious == "tool")
+                {
+                    JsonArray contents = messages.Last()!["content"]!.AsArray();
+                    contents.Add(toolResult);
+                }
+                else
+                {
+                    JsonObject messageToolResult = new JsonObject
+                    {
+                        ["role"] = "user",
+                        ["content"] = new JsonArray { toolResult }
+                    };
+                    messages.Add(messageToolResult);
+                }
+            }
             else
             {
                 messages.Add(message.DeepClone());
             }
+            rolePrevious = role;
         }
         result["messages"] = messages;
 

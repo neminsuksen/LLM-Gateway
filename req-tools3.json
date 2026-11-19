@@ -1,0 +1,62 @@
+{
+    "model": "claude-haiku-5-5",
+    "messages": [
+        {
+            "role": "user",
+            "content": "What is the weather like in Bangkok and Tokyo?"
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+                {
+                    "id": "toolu_01G8EXsoLVCvzCXywvo4j6A8",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": "{\"location\":\"Bangkok\"}"
+                    }
+                },
+                {
+                    "id": "toolu_01WghSHpnaBjjbTTJoGQs1kn",
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "arguments": "{\"location\":\"Tokyo\"}"
+                    }
+                }
+            ]
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "toolu_01G8EXsoLVCvzCXywvo4j6A8",
+            "content": "32 degrees Celsius, sunny"
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "toolu_01WghSHpnaBjjbTTJoGQs1kn",
+            "content": "12 degrees Celsius, rainy"
+        }
+    ],
+    "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get the current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city name"
+                        }
+                    },
+                    "required": [
+                        "location"
+                    ]
+                }
+            }
+        }
+    ]
+}
