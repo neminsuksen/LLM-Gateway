@@ -23,6 +23,10 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
     StreamReader reader = new StreamReader(request.Body);
     string body = await reader.ReadToEndAsync();
     JsonNode requestJson = JsonNode.Parse(body)!;
+    /* Upstream is always called without streaming; a streaming client gets the full answer wrapped as SSE. */
+    bool stream = requestJson["stream"]?.GetValue<bool>() ?? false;
+    requestJson.AsObject().Remove("stream");
+    requestJson.AsObject().Remove("stream_options");
 
     string model = requestJson["model"]!.GetValue<string>() switch
     {
@@ -68,6 +72,31 @@ app.MapPost("/v1/chat/completions", async (HttpRequest request) =>
         decimal promptTokenCost = promptTokens * info.InputPrice / 1_000_000m;
         decimal completionTokenCost = completionTokens * info.OutputPrice / 1_000_000m;
         Console.WriteLine($"Model:{model} prompt: {promptTokens} completion: {completionTokens} cost: {promptTokenCost + completionTokenCost}");
+
+        if (stream)
+        {
+            JsonNode choice = responseJson["choices"]![0]!;
+            JsonNode delta = choice["message"]!.DeepClone();
+            JsonArray? toolCalls = delta["tool_calls"]?.AsArray();
+            for (int i = 0; i < (toolCalls?.Count ?? 0); i++)
+            {
+                toolCalls![i]!["index"] = i;
+            }
+            JsonObject CreateChunk(JsonNode chunkDelta, string? finishReason) => new JsonObject
+            {
+                ["id"] = responseJson["id"]!.GetValue<string>(),
+                ["object"] = "chat.completion.chunk",
+                ["created"] = responseJson["created"]!.GetValue<long>(),
+                ["model"] = responseJson["model"]!.GetValue<string>(),
+                ["choices"] = new JsonArray
+                {
+                    new JsonObject { ["index"] = 0, ["delta"] = chunkDelta, ["finish_reason"] = finishReason }
+                }
+            };
+            string contentChunk = CreateChunk(delta, null).ToJsonString();
+            string finishChunk = CreateChunk(new JsonObject(), choice["finish_reason"]!.GetValue<string>()).ToJsonString();
+            return Results.Content($"data: {contentChunk}\n\ndata: {finishChunk}\n\ndata: [DONE]\n\n", "text/event-stream");
+        }
     }
     return Results.Content(llmResponseOpenAiFormat, "application/json", statusCode: (int)upstreamResponse.StatusCode);
 });

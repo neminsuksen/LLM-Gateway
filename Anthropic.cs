@@ -21,7 +21,7 @@ public static class Anthropic
             {
                 JsonObject messageToolCall = new JsonObject { ["role"] = "assistant" };
                 JsonArray contents = new JsonArray();
-                if (message["content"] != null)
+                if (!string.IsNullOrEmpty(message["content"]?.GetValue<string>()))
                 {
                     contents.Add(new JsonObject
                     {
