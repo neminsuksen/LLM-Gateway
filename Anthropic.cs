@@ -55,13 +55,27 @@ public static class Anthropic
         result["object"] = "chat.completion";
         result["created"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         JsonArray choices = new JsonArray();
-        string text = string.Empty;
+        JsonArray toolCalls = new JsonArray();
+        string? text = null;
         foreach (JsonNode? content in jsonNode["content"]!.AsArray())
         {
             string type = content!["type"]!.GetValue<string>();
             if (type == "text")
             {
                 text += content["text"]!.GetValue<string>();
+            }
+            else if (type == "tool_use")
+            {
+                toolCalls.Add(new JsonObject
+                {
+                    ["id"] = content["id"]!.GetValue<string>(),
+                    ["type"] = "function",
+                    ["function"] = new JsonObject
+                    {
+                        ["name"] = content["name"]!.GetValue<string>(),
+                        ["arguments"] = content["input"]!.ToJsonString()
+                    }
+                });
             }
         }
         string finishReason = jsonNode["stop_reason"]!.GetValue<string>() switch
@@ -70,17 +84,22 @@ public static class Anthropic
             "tool_use" => "tool_calls",
             _ => "stop"
         };
-        JsonObject choice = new JsonObject
+
+        JsonObject message = new JsonObject
+        {
+            ["role"] = jsonNode["role"]!.GetValue<string>(),
+            ["content"] = text
+        };
+        if (toolCalls.Count > 0)
+        {
+            message["tool_calls"] = toolCalls;
+        }
+        choices.Add(new JsonObject
         {
             ["index"] = 0,
-            ["message"] = new JsonObject
-            {
-                ["role"] = jsonNode["role"]!.GetValue<string>(),
-                ["content"] = text
-            },
+            ["message"] = message,
             ["finish_reason"] = finishReason
-        };
-        choices.Add(choice);
+        });
         result["choices"] = choices;
         JsonNode usage = jsonNode["usage"]!;
         result["usage"] = new JsonObject
@@ -89,7 +108,6 @@ public static class Anthropic
             ["completion_tokens"] = usage["output_tokens"]!.GetValue<int>(),
             ["total_tokens"] = usage["input_tokens"]!.GetValue<int>() + usage["output_tokens"]!.GetValue<int>()
         };
-
         return result.ToJsonString();
     }
 }
