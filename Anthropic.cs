@@ -6,6 +6,8 @@ public static class Anthropic
         JsonObject result = new JsonObject();
         result["model"] = jsonNode["model"]!.GetValue<string>();
         result["max_tokens"] = jsonNode["max_completion_tokens"]?.GetValue<int>() ?? jsonNode["max_tokens"]?.GetValue<int>() ?? 1024;
+
+        /* Messages Convert */
         JsonArray messages = new JsonArray();
         foreach (JsonNode? message in jsonNode["messages"]!.AsArray())
         {
@@ -20,6 +22,26 @@ public static class Anthropic
             }
         }
         result["messages"] = messages;
+
+        /* Tools Convert*/
+        if (jsonNode["tools"] != null)
+        {
+            JsonArray tools = new JsonArray();
+            foreach (JsonNode? tool in jsonNode["tools"]!.AsArray())
+            {
+                JsonNode function = tool!["function"]!;
+                string toolName = function["name"]!.GetValue<string>();
+                string toolDescription = function["description"]?.GetValue<string>() ?? "";
+                JsonNode toolParameters = function["parameters"]!.DeepClone();
+                tools.Add(new JsonObject
+                {
+                    ["name"] = toolName,
+                    ["description"] = toolDescription,
+                    ["input_schema"] = toolParameters
+                });
+            }
+            result["tools"] = tools;
+        }
 
         return result;
     }
